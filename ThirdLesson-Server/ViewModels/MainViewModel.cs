@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media.Imaging;
 using ThirdLesson_Server.Commands;
+using System.IO;
 
 namespace ThirdLesson_Server.ViewModels
 {
@@ -15,14 +16,22 @@ namespace ThirdLesson_Server.ViewModels
     {
         public BitmapImage ToImage(byte[] array)
         {
-            using (var ms = new System.IO.MemoryStream(array))
+            try
             {
-                var image = new BitmapImage();
-                image.BeginInit();
-                image.CacheOption = BitmapCacheOption.OnLoad; // here
-                image.StreamSource = ms;
-                image.EndInit();
-                return image;
+                using (var ms = new System.IO.MemoryStream(array))
+                {
+                    var image = new BitmapImage();
+                    image.BeginInit();
+                    image.CacheOption = BitmapCacheOption.OnLoad; // here
+                    image.StreamSource = ms;
+                    image.EndInit();
+                    return image;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+                return null;
             }
         }
         private BitmapImage currentImage;
@@ -33,6 +42,19 @@ namespace ThirdLesson_Server.ViewModels
             set { currentImage = value; OnPropertyChanged(); }
         }
         public RelayCommand ConnectClickCommand { get; set; }
+        private BitmapImage CreateBitmapImageFromBytes(byte[] bytes)
+        {
+            using (MemoryStream ms = new MemoryStream(bytes))
+            {
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.StreamSource = ms;
+                bitmap.EndInit();
+                bitmap.Freeze();
+                return bitmap;
+            }
+        }
         public MainViewModel()
         {
             ConnectClickCommand = new RelayCommand(async (obj) =>
@@ -47,27 +69,23 @@ namespace ThirdLesson_Server.ViewModels
 
                 MessageBox.Show("Listening . . .");
 
-                await Task.Run(async () =>
+                await Task.Run(() =>
                 {
                     while (true)
                     {
                         var bytes = new byte[socket.ReceiveBufferSize];
                         var length = socket.ReceiveFrom(bytes, ref ep);
-                        if (length == 0)
-                        {
-                            break;
-                        }
-                        else
-                        {
-                            var msg = ToImage(bytes);
 
-                            await Application.Current.Dispatcher.InvokeAsync(() => {
-                                CurrentImage = msg;
-                            });
-                        }
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            BitmapImage msg = CreateBitmapImageFromBytes(bytes);
+                            CurrentImage = msg;
+                        });
                     }
                 });
+
             });
+
 
         }
     }
